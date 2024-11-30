@@ -7,18 +7,26 @@ import {
   createStudent,
   createTeacher,
   findUserInTables,
-} from "../quaries/user.js";
-import { comparePassword, generateAccessToken } from "../utils/utils.js";
-import { pool } from "../database/index.js";
+} from "../queries/user.queries.js";
+import {
+  comparePassword,
+  generateAccessToken,
+  validateDate,
+} from "../utils/utils.js";
+import { fileURLToPath } from "url";
+import path from "path";
 
-// Cookies options for JWT
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const cookieOptions = {
   httpOnly: true,
   secure: true,
 };
 
 const adminSignup = asyncHandler(async (req, res) => {
-  const {
+  let {
     username,
     password,
     email,
@@ -55,24 +63,47 @@ const adminSignup = asyncHandler(async (req, res) => {
   }
 
   if (typeof agreementToTerms !== "boolean") {
-    throw new ApiError(400, "'agreementToTerms' must be a boolean value");
+    if (agreementToTerms === "true") {
+      agreementToTerms = true;
+    } else if (agreementToTerms === "false") {
+      agreementToTerms = false;
+    } else {
+      throw new ApiError(400, "'agreementToTerms' must be a boolean value");
+    }
   }
 
-  const tables = ["admin", "student", "teacher", "parent"];
-  for (const table of tables) {
-    const [result] = await pool.query(
-      `SELECT 1 FROM ?? WHERE username = ? LIMIT 1`,
-      [table, username],
-    );
-    if (result.length > 0) {
-      throw new ApiError(400, "Username already exists");
-    }
+  const newSchoolEstablished = validateDate(schoolEstablished);
+
+  const avatarLocalPath = req.files?.profilePicture?.[0]?.path;
+  let schoolLogo = req.files?.schoolLogo?.[0]?.path;
+
+  if (!avatarLocalPath) {
+    throw new ApiError(400, "Please upload avatar");
+  }
+
+  if (!schoolLogo) {
+    throw new ApiError(400, "Please upload school logo.");
+  }
+
+  const avatarLocalPathPublic = path.join(
+    __dirname,
+    "public",
+    "profilePicture",
+    path.basename(avatarLocalPath),
+  );
+  const schoolLogoLocalPathPublic = schoolLogo
+    ? path.join(__dirname, "public", "schoolLogo", path.basename(schoolLogo))
+    : null;
+
+  const user = await findUserInTables(username, email);
+  if (user) {
+    throw new ApiError(400, "Username already exists");
   }
 
   const adminData = await createAdmin({
     username: username?.trim(),
     password: password?.trim(),
-    email: email?.toLowerCase() && email?.trim(),
+    email: email?.toLowerCase().trim(),
     fullName,
     phoneNumber,
     schoolName,
@@ -82,54 +113,37 @@ const adminSignup = asyncHandler(async (req, res) => {
     schoolRegisterId,
     governmentId,
     agreementToTerms,
-    schoolEstablished,
+    schoolEstablished: newSchoolEstablished,
+    profilePicture: avatarLocalPathPublic,
+    schoolLogo: schoolLogoLocalPathPublic,
   });
 
   if (!adminData) {
     throw new ApiError(500, "Error while creating admin");
   }
 
-  let role, id;
-  for (const table of tables) {
-    const [rows] = await pool.query(
-      `SELECT id, role FROM ?? WHERE username = ? LIMIT 1`,
-      [table, username],
-    );
-    if (rows.length > 0) {
-      ({ id, role } = rows[0]);
-      break;
-    }
-  }
+  const newUser = await findUserInTables(username, email);
 
-  if (!id || !role) {
+  if (!newUser) {
     throw new ApiError(
       404,
       "User creation successful but not found in any table",
     );
   }
 
-  const accessToken = generateAccessToken(id, email);
-  const admin = {
-    id,
-    role,
-    username,
-    email,
-    fullName,
-    phoneNumber,
-    schoolName,
-    schoolAddress,
-    schoolContactNumber,
-    schoolEmail,
-    schoolRegisterId,
-    governmentId,
-    agreementToTerms,
-    schoolEstablished,
-    accessToken,
-  };
+  const { password: _, ...userWithoutPassword } = newUser;
 
-  return res
-    .status(201)
-    .json(new ApiResponse(201, "Admin Created Successfully", admin));
+  const accessToken = generateAccessToken(
+    userWithoutPassword.id,
+    userWithoutPassword.email,
+  );
+
+  return res.status(201).json(
+    new ApiResponse(201, "Admin Created Successfully", {
+      userWithoutPassword,
+      accessToken,
+    }),
+  );
 });
 
 const teacherSignup = asyncHandler(async (req, res) => {
@@ -163,67 +177,66 @@ const teacherSignup = asyncHandler(async (req, res) => {
     throw new ApiError(400, "All fields are required");
   }
 
-  // Ensure birthday is a valid date
-  if (isNaN(new Date(birthday))) {
-    throw new ApiError(400, "Invalid date format for 'birthday'");
+  const validBirthday = validateDate(birthday);
+
+  const avatarLocalPath = req.file.path;
+
+  if (!avatarLocalPath) {
+    throw new ApiError(400, "Please upload an avatar");
   }
 
-  // Check if username already exists across tables
-  const tables = ["admin", "student", "teacher", "parent"];
-  for (const table of tables) {
-    const [result] = await pool.query(
-      `SELECT 1 FROM ?? WHERE username = ? LIMIT 1`,
-      [table, username],
-    );
-    if (result.length > 0) {
-      throw new ApiError(400, "Username already exists");
-    }
+  const avatarLocalPathPublic = path.join(
+    __dirname,
+    "public",
+    "profile",
+    path.basename(avatarLocalPath),
+  );
+
+  const user = await findUserInTables(username, email);
+  if (user) {
+    throw new ApiError(400, "Username already exists");
   }
 
-  // Create the teacher record
   const teacherData = await createTeacher({
     username: username?.trim(),
     password: password?.trim(),
-    email: email?.toLowerCase() && email?.trim(),
+    email: email?.toLowerCase().trim(),
     name,
     surname,
     phone,
     address,
     bloodType,
-    sex,
-    birthday,
+    sex: sex.toLowerCase().trim(),
+    birthday: validBirthday,
+    profile: avatarLocalPathPublic,
   });
 
   if (!teacherData) {
     throw new ApiError(500, "Error while creating teacher");
   }
 
-  let role, id;
-  for (const table of tables) {
-    const [rows] = await pool.query(
-      `SELECT id, role FROM ?? WHERE username = ? LIMIT 1`,
-      [table, username],
-    );
-    if (rows.length > 0) {
-      ({ id, role } = rows[0]);
-      break;
-    }
-  }
+  const newUser = await findUserInTables(username, email);
 
-  if (!id || !role) {
+  if (!newUser) {
     throw new ApiError(
       404,
       "User creation successful but not found in any table",
     );
   }
 
-  // Generate and respond with the teacher details
-  const accessToken = generateAccessToken(id, email);
-  const teacher = { id, role, username, accessToken };
+  const { password: _, ...userWithoutPassword } = newUser;
 
-  return res
-    .status(201)
-    .json(new ApiResponse(201, "Teacher Created Successfully", teacher));
+  const accessToken = generateAccessToken(
+    userWithoutPassword.id,
+    userWithoutPassword.email,
+  );
+
+  return res.status(201).json(
+    new ApiResponse(201, "Teacher Created Successfully", {
+      userWithoutPassword,
+      accessToken,
+    }),
+  );
 });
 
 const parentSignup = asyncHandler(async (req, res) => {
@@ -237,22 +250,16 @@ const parentSignup = asyncHandler(async (req, res) => {
     throw new ApiError(400, "All fields are required");
   }
 
-  const tables = ["admin", "student", "teacher", "parent"];
-  for (const table of tables) {
-    const [result] = await pool.query(
-      `SELECT 1 FROM ?? WHERE username = ? LIMIT 1`,
-      [table, username],
-    );
-    if (result.length > 0) {
-      throw new ApiError(400, "Username already exists");
-    }
+  const user = await findUserInTables(username, email);
+  if (user) {
+    throw new ApiError(400, "Username already exists");
   }
 
   // Create the teacher record
   const ParentData = await createParent({
     username: username?.trim(),
     password: password?.trim(),
-    email: email?.toLowerCase() && email?.trim(),
+    email: email?.toLowerCase().trim(),
     name,
     surname,
     phone,
@@ -263,32 +270,28 @@ const parentSignup = asyncHandler(async (req, res) => {
     throw new ApiError(500, "Error while creating parent");
   }
 
-  let role, id;
-  for (const table of tables) {
-    const [rows] = await pool.query(
-      `SELECT id, role FROM ?? WHERE username = ? LIMIT 1`,
-      [table, username],
-    );
-    if (rows.length > 0) {
-      ({ id, role } = rows[0]);
-      break;
-    }
-  }
+  const newUser = await findUserInTables(username, email);
 
-  if (!id || !role) {
+  if (!newUser) {
     throw new ApiError(
       404,
       "User creation successful but not found in any table",
     );
   }
 
-  // Generate and respond with the teacher details
-  const accessToken = generateAccessToken(id, email);
-  const parent = { id, role, username, accessToken };
+  const { password: _, ...userWithoutPassword } = newUser;
 
-  return res
-    .status(201)
-    .json(new ApiResponse(201, "Parent Created Successfully", parent));
+  const accessToken = generateAccessToken(
+    userWithoutPassword.id,
+    userWithoutPassword.email,
+  );
+
+  return res.status(201).json(
+    new ApiResponse(201, "Parent Created Successfully", {
+      userWithoutPassword,
+      accessToken,
+    }),
+  );
 });
 
 const studentSignup = asyncHandler(async (req, res) => {
@@ -322,61 +325,66 @@ const studentSignup = asyncHandler(async (req, res) => {
     throw new ApiError(400, "All fields are required");
   }
 
-  const tables = ["admin", "student", "teacher", "parent"];
-  for (const table of tables) {
-    const [result] = await pool.query(
-      `SELECT 1 FROM ?? WHERE username = ? LIMIT 1`,
-      [table, username],
-    );
-    if (result.length > 0) {
-      throw new ApiError(400, "Username already exists");
-    }
+  const validBirthday = validateDate(birthday);
+
+  const avatarLocalPath = req.file.path;
+
+  if (!avatarLocalPath) {
+    throw new ApiError(400, "Please upload an avatar");
   }
 
-  // Create the teacher record
+  const avatarLocalPathPublic = path.join(
+    __dirname,
+    "public",
+    "profile",
+    path.basename(avatarLocalPath),
+  );
+
+  const user = await findUserInTables(username, email);
+  if (user) {
+    throw new ApiError(400, "Username already exists");
+  }
+
   const studentData = await createStudent({
     username: username?.trim(),
     password: password?.trim(),
-    email: email?.toLowerCase() && email?.trim(),
+    email: email?.toLowerCase().trim(),
     name,
     surname,
     phone,
     address,
     bloodType,
-    sex,
-    birthday,
+    sex: sex.toLowerCase().trim(),
+    birthday: validBirthday,
+    profile: avatarLocalPathPublic,
   });
 
   if (!studentData) {
     throw new ApiError(500, "Error while creating student");
   }
 
-  let role, id;
-  for (const table of tables) {
-    const [rows] = await pool.query(
-      `SELECT id, role FROM ?? WHERE username = ? LIMIT 1`,
-      [table, username],
-    );
-    if (rows.length > 0) {
-      ({ id, role } = rows[0]);
-      break;
-    }
-  }
+  const newUser = await findUserInTables(username, email);
 
-  if (!id || !role) {
+  if (!newUser) {
     throw new ApiError(
       404,
       "User creation successful but not found in any table",
     );
   }
 
-  // Generate and respond with the teacher details
-  const accessToken = generateAccessToken(id, email);
-  const student = { id, role, username, accessToken };
+  const { password: _, ...userWithoutPassword } = newUser;
 
-  return res
-    .status(201)
-    .json(new ApiResponse(201, "Parent Created Successfully", student));
+  const accessToken = generateAccessToken(
+    userWithoutPassword.id,
+    userWithoutPassword.email,
+  );
+
+  return res.status(201).json(
+    new ApiResponse(201, "Parent Created Successfully", {
+      userWithoutPassword,
+      accessToken,
+    }),
+  );
 });
 
 const userLogin = asyncHandler(async (req, res) => {
@@ -441,7 +449,6 @@ const authenticateUserController = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, "Access granted!", { user: req.user }));
 });
 
-// const userLogout = asyncHandler(async (req, res) => {});
 
 // const getCurrentUser = asyncHandler(async (req, res) => {});
 

@@ -44,3 +44,24 @@ const generateRefreshToken = (id, email) => {
     },
   );
 };
+
+export function validateDate(birthday) {
+  const dateFormatRegex = /^\d{2}\/\d{2}\/\d{4}$/;
+
+  if (!dateFormatRegex.test(birthday)) {
+    throw new Error("Invalid date format Use DD/MM/YYYY.");
+  }
+
+  const [day, month, year] = birthday.split("/").map(Number);
+
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    throw new Error("Invalid date.");
+  }
+
+  return date;
+}

@@ -9,13 +9,26 @@ import {
   userLogout,
 } from "../controllers/user.controller.js";
 import { authenticateUser } from "../middlewares/auth.middleware.js";
+import { upload } from "../middlewares/multer.middleware.js";
 
 const router = Router();
 
-router.route("/signup").post(adminSignup);
-router.route("/create-teacher").post(teacherSignup);
+router.route("/signup").post(
+  upload.fields([
+    {
+      name: "profilePicture",
+      maxCount: 1,
+    },
+    {
+      name: "schoolLogo",
+      maxCount: 1,
+    },
+  ]),
+  adminSignup,
+);
+router.route("/create-teacher").post(upload.single("profile"), teacherSignup);
 router.route("/create-parent").post(parentSignup);
-router.route("/create-student").post(studentSignup);
+router.route("/create-student").post(upload.single("profile"),studentSignup);
 router.route("/login").post(userLogin);
 router
   .route("/protected-route")

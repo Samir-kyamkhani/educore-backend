@@ -16,14 +16,16 @@ export const createAdmin = async ({
   governmentId,
   agreementToTerms,
   schoolEstablished,
+  profilePicture,
+  schoolLogo,
 }) => {
   try {
     const hashedPassword = await hashPassword(password);
 
     const query = `
         INSERT INTO admin 
-        (username, password, fullName, email, phoneNumber, schoolName, schoolAddress, schoolContactNumber, schoolEmail, schoolRegisterId, governmentId, agreementToTerms, schoolEstablished)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        (username, password, fullName, email, phoneNumber, schoolName, schoolAddress, schoolContactNumber, schoolEmail, schoolRegisterId, governmentId, agreementToTerms, schoolEstablished, profilePicture, schoolLogo)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const params = [
       username,
@@ -39,6 +41,8 @@ export const createAdmin = async ({
       governmentId,
       agreementToTerms,
       schoolEstablished,
+      profilePicture,
+      schoolLogo,
     ];
 
     // Execute query
@@ -59,6 +63,7 @@ export const createTeacher = async ({
   address,
   bloodType,
   sex,
+  profile,
   birthday,
 }) => {
   try {
@@ -66,8 +71,8 @@ export const createTeacher = async ({
 
     // SQL query
     const query = `
-       INSERT INTO teacher (username, password, name, surname, email, phone, address, bloodType, sex, birthday, createdAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
+       INSERT INTO teacher (username, password, name, surname, email, phone, address, bloodType, sex, birthday, profile, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
 
     // Query parameters
     const params = [
@@ -81,6 +86,7 @@ export const createTeacher = async ({
       bloodType,
       sex,
       birthday,
+      profile,
     ];
 
     const data = await pool.query(query, params);
@@ -135,13 +141,13 @@ export const createStudent = async ({
   bloodType,
   sex,
   birthday,
+  profile,
 }) => {
   try {
     const hashedPassword = await hashPassword(password);
 
-    const query = `
-    INSERT INTO student (username, password, name, surname, email, phone, address, bloodType, sex, birthday, createdAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
+    const query = `INSERT INTO student (username, password, name, surname, email, phone, address, bloodType, sex, birthday, profile, createdAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
 
     // Query parameters
     const params = [
@@ -155,6 +161,7 @@ export const createStudent = async ({
       bloodType,
       sex,
       birthday,
+      profile,
     ];
 
     const data = await pool.query(query, params);
