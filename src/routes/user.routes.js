@@ -26,9 +26,13 @@ router.route("/signup").post(
   ]),
   adminSignup,
 );
-router.route("/create-teacher").post(upload.single("profile"), teacherSignup);
-router.route("/create-parent").post(parentSignup);
-router.route("/create-student").post(upload.single("profile"),studentSignup);
+router
+  .route("/create-teacher")
+  .post(authenticateUser, upload.single("profile"), teacherSignup);
+router.route("/create-parent").post(authenticateUser, parentSignup);
+router
+  .route("/create-student")
+  .post(authenticateUser, upload.single("profile"), studentSignup);
 router.route("/login").post(userLogin);
 router
   .route("/protected-route")
