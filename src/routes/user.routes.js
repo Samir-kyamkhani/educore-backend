@@ -1,7 +1,9 @@
 import { Router } from "express";
 import {
   adminSignup,
+  adminUpdate,
   authenticateUserController,
+  getCurrentUser,
   parentSignup,
   studentSignup,
   teacherSignup,
@@ -26,6 +28,22 @@ router.route("/signup").post(
   ]),
   adminSignup,
 );
+
+router.route("/update-admin").put(
+  authenticateUser,
+  upload.fields([
+    {
+      name: "profilePicture",
+      maxCount: 1,
+    },
+    {
+      name: "schoolLogo",
+      maxCount: 1,
+    },
+  ]),
+  adminUpdate,
+);
+
 router
   .route("/create-teacher")
   .post(authenticateUser, upload.single("profile"), teacherSignup);
@@ -38,11 +56,9 @@ router
   .route("/protected-route")
   .get(authenticateUser, authenticateUserController);
 router.route("/logout").post(authenticateUser, userLogout);
+router.route("/:id").get(authenticateUser, getCurrentUser);
 
-// // router.route("/refresh-token").post(refreshAccessToken);
 // router.route("/change-password").post(verifyJwt, changeCurrentPassword);
-// router.route("/:id").get(getCurrentUser);
-// router.route("/").get(getAuthores);
 // router.route("/update-account").patch(verifyJwt, updateUserDetails);
 
 // router

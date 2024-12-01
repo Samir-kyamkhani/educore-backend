@@ -52,6 +52,13 @@ export const createAdmin = async ({
   }
 };
 
+export const updateAdmin = async (id, updates) => {
+  const query = "UPDATE admin SET ? WHERE id = ?";
+  const queryParams = [updates, id];
+  const [result] = await pool.query(query, queryParams);
+  return result.affectedRows > 0;
+};
+
 export const createTeacher = async ({
   username,
   password,
@@ -191,4 +198,21 @@ export const findUserInTables = async (username, email) => {
   }
 
   return null;
+};
+
+export const findUserById = async (id) => {
+  const tables = ["admin", "student", "teacher", "parent"];
+
+  for (const table of tables) {
+    const query = `SELECT * FROM ?? WHERE id = ?`;
+    const queryParams = [table, id];
+
+    const [result] = await pool.query(query, queryParams);
+
+    if (result.length > 0) {
+      return { ...result[0], role: table };
+    }
+  }
+
+  return null; // Return null if no user is found in any table
 };

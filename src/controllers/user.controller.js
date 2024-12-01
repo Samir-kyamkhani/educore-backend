@@ -6,7 +6,9 @@ import {
   createParent,
   createStudent,
   createTeacher,
+  findUserById,
   findUserInTables,
+  updateAdmin,
 } from "../queries/user.queries.js";
 import {
   comparePassword,
@@ -136,6 +138,111 @@ const adminSignup = asyncHandler(async (req, res) => {
 
   return res.status(201).json(
     new ApiResponse(201, "Admin Created Successfully", {
+      user,
+      accessToken,
+    }),
+  );
+});
+
+const adminUpdate = asyncHandler(async (req, res) => {
+  const {
+    username,
+    password,
+    email,
+    fullName,
+    phoneNumber,
+    schoolName,
+    schoolAddress,
+    schoolContactNumber,
+    schoolEmail,
+    schoolRegisterId,
+    governmentId,
+    schoolEstablished,
+  } = req.body;
+
+  const updates = {};
+
+  // Validate and update only provided fields
+  if (username?.trim()) updates.username = username.trim();
+  if (password?.trim()) updates.password = password.trim();
+  if (email?.trim()) updates.email = email.toLowerCase().trim();
+  if (fullName?.trim()) updates.fullName = fullName.trim();
+  if (phoneNumber?.trim()) updates.phoneNumber = phoneNumber.trim();
+  if (schoolName?.trim()) updates.schoolName = schoolName.trim();
+  if (schoolAddress?.trim()) updates.schoolAddress = schoolAddress.trim();
+  if (schoolContactNumber?.trim())
+    updates.schoolContactNumber = schoolContactNumber.trim();
+  if (schoolEmail?.trim())
+    updates.schoolEmail = schoolEmail.toLowerCase().trim();
+  if (schoolRegisterId?.trim())
+    updates.schoolRegisterId = schoolRegisterId.trim();
+  if (governmentId?.trim()) updates.governmentId = governmentId.trim();
+
+  if (schoolEstablished) {
+    updates.schoolEstablished = validateDate(schoolEstablished);
+  }
+
+  // Handle file uploads conditionally
+  const avatarLocalPath = req.files?.profilePicture?.[0]?.path;
+  const schoolLogo = req.files?.schoolLogo?.[0]?.path;
+
+  if (avatarLocalPath) {
+    updates.profilePicture = path.join(
+      __dirname,
+      "public",
+      "profilePicture",
+      path.basename(avatarLocalPath),
+    );
+  }
+
+  if (schoolLogo) {
+    updates.schoolLogo = path.join(
+      __dirname,
+      "public",
+      "schoolLogo",
+      path.basename(schoolLogo),
+    );
+  }
+
+  // Check if there's anything to update
+  if (Object.keys(updates).length === 0) {
+    throw new ApiError(400, "No fields provided to update");
+  }
+
+  // Check if the username or email is already taken by another user
+  if (updates.username || updates.email) {
+    const existUser = await findUserInTables(
+      updates.username || username,
+      updates.email || email,
+    );
+    if (existUser && existUser.id !== req.user.id) {
+      throw new ApiError(400, "Username or email already exists");
+    }
+  }
+
+  // Perform the update
+  const updatedAdmin = await updateAdmin(req.user.id, updates);
+
+  if (!updatedAdmin) {
+    throw new ApiError(500, "Error while updating admin profile");
+  }
+
+  // Fetch the updated user data
+  const newUser = await findUserInTables(
+    updates.username || username,
+    updates.email || email,
+  );
+
+  if (!newUser) {
+    throw new ApiError(404, "Update successful but user not found");
+  }
+
+  const { password: _, ...user } = newUser;
+
+  const accessToken = generateAccessToken(user.id, user.email);
+
+  return res.status(200).json(
+    new ApiResponse(200, "Admin updated successfully", {
       user,
       accessToken,
     }),
@@ -435,7 +542,19 @@ const authenticateUserController = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, "Access granted!", { user: req.user }));
 });
 
-// const getCurrentUser = asyncHandler(async (req, res) => {});
+const getCurrentUser = asyncHandler(async (req, res) => {
+  const userID = req.user?.id;
+
+  if (!userID) {
+    throw new ApiError("User not logged in", 401);
+  }
+
+  const { password: _, ...user } = await findUserById(userID);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "User fetched successfully", user));
+});
 
 // const updateUserAvatar = asyncHandler(async (req, res) => {});
 
@@ -447,10 +566,12 @@ const authenticateUserController = asyncHandler(async (req, res) => {
 
 export {
   adminSignup,
+  adminUpdate,
   teacherSignup,
   parentSignup,
   studentSignup,
   userLogin,
   userLogout,
   authenticateUserController,
+  getCurrentUser,
 };
