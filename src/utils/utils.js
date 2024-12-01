@@ -19,11 +19,12 @@ export const comparePassword = async (password, hashedPassword) => {
   return isMatch;
 };
 
-export const generateAccessToken = (id, email) => {
+export const generateAccessToken = (id, email, role) => {
   return jwt.sign(
     {
       id,
       email,
+      role,
     },
     process.env.ACCESS_TOKEN_SECRET,
     {
