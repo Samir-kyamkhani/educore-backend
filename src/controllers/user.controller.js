@@ -366,7 +366,7 @@ const studentSignup = asyncHandler(async (req, res) => {
   const accessToken = generateAccessToken(user.id, user.email);
 
   return res.status(201).json(
-    new ApiResponse(201, "Parent Created Successfully", {
+    new ApiResponse(201, "Student Created Successfully", {
       user,
       accessToken,
     }),
