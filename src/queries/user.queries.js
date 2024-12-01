@@ -45,7 +45,6 @@ export const createAdmin = async ({
       schoolLogo,
     ];
 
-    // Execute query
     const data = await pool.query(query, params);
     return data;
   } catch (error) {
@@ -69,12 +68,10 @@ export const createTeacher = async ({
   try {
     const hashedPassword = await hashPassword(password);
 
-    // SQL query
     const query = `
        INSERT INTO teacher (username, password, name, surname, email, phone, address, bloodType, sex, birthday, profile, createdAt)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
 
-    // Query parameters
     const params = [
       username,
       hashedPassword,
@@ -112,7 +109,6 @@ export const createParent = async ({
         INSERT INTO parent (username, password, name, surname, email, phone, address, createdAt)
         VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`;
 
-    // Query parameters
     const params = [
       username,
       hashedPassword,
@@ -149,7 +145,6 @@ export const createStudent = async ({
     const query = `INSERT INTO student (username, password, name, surname, email, phone, address, bloodType, sex, birthday, profile, createdAt)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
 
-    // Query parameters
     const params = [
       username,
       hashedPassword,

@@ -16,7 +16,6 @@ import {
 import { fileURLToPath } from "url";
 import path from "path";
 
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -95,8 +94,8 @@ const adminSignup = asyncHandler(async (req, res) => {
     ? path.join(__dirname, "public", "schoolLogo", path.basename(schoolLogo))
     : null;
 
-  const user = await findUserInTables(username, email);
-  if (user) {
+  const existUser = await findUserInTables(username, email);
+  if (existUser) {
     throw new ApiError(400, "Username already exists");
   }
 
@@ -131,16 +130,13 @@ const adminSignup = asyncHandler(async (req, res) => {
     );
   }
 
-  const { password: _, ...userWithoutPassword } = newUser;
+  const { password: _, ...user } = newUser;
 
-  const accessToken = generateAccessToken(
-    userWithoutPassword.id,
-    userWithoutPassword.email,
-  );
+  const accessToken = generateAccessToken(user.id, user.email);
 
   return res.status(201).json(
     new ApiResponse(201, "Admin Created Successfully", {
-      userWithoutPassword,
+      user,
       accessToken,
     }),
   );
@@ -192,8 +188,8 @@ const teacherSignup = asyncHandler(async (req, res) => {
     path.basename(avatarLocalPath),
   );
 
-  const user = await findUserInTables(username, email);
-  if (user) {
+  const existUser = await findUserInTables(username, email);
+  if (existUser) {
     throw new ApiError(400, "Username already exists");
   }
 
@@ -224,16 +220,13 @@ const teacherSignup = asyncHandler(async (req, res) => {
     );
   }
 
-  const { password: _, ...userWithoutPassword } = newUser;
+  const { password: _, ...user } = newUser;
 
-  const accessToken = generateAccessToken(
-    userWithoutPassword.id,
-    userWithoutPassword.email,
-  );
+  const accessToken = generateAccessToken(user.id, user.email);
 
   return res.status(201).json(
     new ApiResponse(201, "Teacher Created Successfully", {
-      userWithoutPassword,
+      user,
       accessToken,
     }),
   );
@@ -250,12 +243,11 @@ const parentSignup = asyncHandler(async (req, res) => {
     throw new ApiError(400, "All fields are required");
   }
 
-  const user = await findUserInTables(username, email);
-  if (user) {
+  const existUser = await findUserInTables(username, email);
+  if (existUser) {
     throw new ApiError(400, "Username already exists");
   }
 
-  // Create the teacher record
   const ParentData = await createParent({
     username: username?.trim(),
     password: password?.trim(),
@@ -279,16 +271,13 @@ const parentSignup = asyncHandler(async (req, res) => {
     );
   }
 
-  const { password: _, ...userWithoutPassword } = newUser;
+  const { password: _, ...user } = newUser;
 
-  const accessToken = generateAccessToken(
-    userWithoutPassword.id,
-    userWithoutPassword.email,
-  );
+  const accessToken = generateAccessToken(user.id, user.email);
 
   return res.status(201).json(
     new ApiResponse(201, "Parent Created Successfully", {
-      userWithoutPassword,
+      user,
       accessToken,
     }),
   );
@@ -340,8 +329,8 @@ const studentSignup = asyncHandler(async (req, res) => {
     path.basename(avatarLocalPath),
   );
 
-  const user = await findUserInTables(username, email);
-  if (user) {
+  const existUser = await findUserInTables(username, email);
+  if (existUser) {
     throw new ApiError(400, "Username already exists");
   }
 
@@ -372,16 +361,13 @@ const studentSignup = asyncHandler(async (req, res) => {
     );
   }
 
-  const { password: _, ...userWithoutPassword } = newUser;
+  const { password: _, ...user } = newUser;
 
-  const accessToken = generateAccessToken(
-    userWithoutPassword.id,
-    userWithoutPassword.email,
-  );
+  const accessToken = generateAccessToken(user.id, user.email);
 
   return res.status(201).json(
     new ApiResponse(201, "Parent Created Successfully", {
-      userWithoutPassword,
+      user,
       accessToken,
     }),
   );
@@ -398,9 +384,9 @@ const userLogin = asyncHandler(async (req, res) => {
     throw new ApiError("Password is required.", 400);
   }
 
-  const user = await findUserInTables(username, email);
+  const existUser = await findUserInTables(username, email);
 
-  if (!user) {
+  if (!existUser) {
     throw new ApiError("Invalid credentials. User not found.", 401);
   }
 
@@ -410,7 +396,7 @@ const userLogin = asyncHandler(async (req, res) => {
     throw new ApiError("Invalid username, email, or password.", 401);
   }
 
-  const { password: _, ...userWithoutPassword } = user;
+  const { password: _, ...user } = existUser;
 
   const accessToken = generateAccessToken(user.id, user.email);
 
@@ -419,7 +405,7 @@ const userLogin = asyncHandler(async (req, res) => {
     .cookie("accessToken", accessToken, cookieOptions)
     .json(
       new ApiResponse(200, "Login successful", {
-        user: userWithoutPassword,
+        user,
         accessToken,
       }),
     );
@@ -448,7 +434,6 @@ const authenticateUserController = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, "Access granted!", { user: req.user }));
 });
-
 
 // const getCurrentUser = asyncHandler(async (req, res) => {});
 
