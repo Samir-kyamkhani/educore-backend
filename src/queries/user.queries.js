@@ -52,13 +52,6 @@ export const createAdmin = async ({
   }
 };
 
-export const updateAdmin = async (id, updates) => {
-  const query = "UPDATE admin SET ? WHERE id = ?";
-  const queryParams = [updates, id];
-  const [result] = await pool.query(query, queryParams);
-  return result.affectedRows > 0;
-};
-
 export const createTeacher = async ({
   username,
   password,
@@ -215,4 +208,22 @@ export const findUserById = async (id) => {
   }
 
   return null; // Return null if no user is found in any table
+};
+
+export const updateUser = async (id, updates, table) => {
+  const allowedTables = ["admin", "student", "teacher", "parent"];
+  if (!allowedTables.includes(table)) throw new Error("Invalid table name");
+
+  const setClause = Object.keys(updates)
+    .map((key) => `${key} = ?`)
+    .join(", ");
+  const values = [...Object.values(updates), id];
+
+  try {
+    const query = `UPDATE ${table} SET ${setClause} WHERE id = ?`;
+    const [result] = await pool.query(query, values);
+    return result.affectedRows > 0;
+  } catch (error) {
+    throw error;
+  }
 };

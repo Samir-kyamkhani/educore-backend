@@ -8,11 +8,12 @@ import {
   createTeacher,
   findUserById,
   findUserInTables,
-  updateAdmin,
+  updateUser,
 } from "../queries/user.queries.js";
 import {
   comparePassword,
   generateAccessToken,
+  hashPassword,
   validateDate,
 } from "../utils/utils.js";
 import { fileURLToPath } from "url";
@@ -134,7 +135,7 @@ const adminSignup = asyncHandler(async (req, res) => {
 
   const { password: _, ...user } = newUser;
 
-  const accessToken = generateAccessToken(user.id, user.email);
+  const accessToken = generateAccessToken(user.id, user.email, user.role);
 
   return res.status(201).json(
     new ApiResponse(201, "Admin Created Successfully", {
@@ -147,6 +148,7 @@ const adminSignup = asyncHandler(async (req, res) => {
 const adminUpdate = asyncHandler(async (req, res) => {
   const {
     username,
+    oldPassword,
     password,
     email,
     fullName,
@@ -164,7 +166,6 @@ const adminUpdate = asyncHandler(async (req, res) => {
 
   // Validate and update only provided fields
   if (username?.trim()) updates.username = username.trim();
-  if (password?.trim()) updates.password = password.trim();
   if (email?.trim()) updates.email = email.toLowerCase().trim();
   if (fullName?.trim()) updates.fullName = fullName.trim();
   if (phoneNumber?.trim()) updates.phoneNumber = phoneNumber.trim();
@@ -182,7 +183,28 @@ const adminUpdate = asyncHandler(async (req, res) => {
     updates.schoolEstablished = validateDate(schoolEstablished);
   }
 
-  // Handle file uploads conditionally
+  if (password?.trim() && !oldPassword?.trim()) {
+    throw new ApiError(401, "Please also provide the old password");
+  }
+
+  if (oldPassword?.trim() && password?.trim()) {
+    const existUser = await findUserById(req.user.id);
+
+    if (!existUser) {
+      throw new ApiError(401, "Invalid ID. User not found.");
+    }
+
+    const isPasswordMatch = await comparePassword(
+      oldPassword,
+      existUser.password,
+    );
+    if (!isPasswordMatch) {
+      throw new ApiError(401, "Old password does not match");
+    }
+
+    updates.password = await hashPassword(password);
+  }
+
   const avatarLocalPath = req.files?.profilePicture?.[0]?.path;
   const schoolLogo = req.files?.schoolLogo?.[0]?.path;
 
@@ -221,7 +243,8 @@ const adminUpdate = asyncHandler(async (req, res) => {
   }
 
   // Perform the update
-  const updatedAdmin = await updateAdmin(req.user.id, updates);
+  // const updatedAdmin = await updateAdmin(req.user.id, updates);
+  const updatedAdmin = await updateUser(req.user.id, updates, "admin");
 
   if (!updatedAdmin) {
     throw new ApiError(500, "Error while updating admin profile");
@@ -239,7 +262,7 @@ const adminUpdate = asyncHandler(async (req, res) => {
 
   const { password: _, ...user } = newUser;
 
-  const accessToken = generateAccessToken(user.id, user.email);
+  const accessToken = generateAccessToken(user.id, user.email, user.role);
 
   return res.status(200).json(
     new ApiResponse(200, "Admin updated successfully", {
@@ -329,10 +352,124 @@ const teacherSignup = asyncHandler(async (req, res) => {
 
   const { password: _, ...user } = newUser;
 
-  const accessToken = generateAccessToken(user.id, user.email);
+  const accessToken = generateAccessToken(user.id, user.email, user.role);
 
   return res.status(201).json(
     new ApiResponse(201, "Teacher Created Successfully", {
+      user,
+      accessToken,
+    }),
+  );
+});
+
+const teacherUpdate = asyncHandler(async (req, res) => {
+  const {
+    username,
+    oldPassword,
+    password,
+    email,
+    name,
+    surname,
+    phone,
+    address,
+    bloodType,
+    sex,
+    birthday,
+    teacherId, // Added to specify which teacher to update
+  } = req.body;
+
+  if (req.user.role !== "admin") {
+    throw new ApiError(403, "You are not authorized to perform this action");
+  }
+
+  if (!teacherId) {
+    throw new ApiError(400, "Teacher ID is required");
+  }
+
+  const updates = {};
+
+  // Validate and update only provided fields
+  if (username?.trim()) updates.username = username.trim();
+  if (email?.trim()) updates.email = email.toLowerCase().trim();
+  if (name?.trim()) updates.name = name.trim();
+  if (surname?.trim()) updates.surname = surname.trim();
+  if (phone?.trim()) updates.phone = phone.trim();
+  if (address?.trim()) updates.address = address.trim();
+  if (bloodType?.trim()) updates.bloodType = bloodType.trim();
+  if (sex?.toLowerCase().trim()) updates.sex = sex.toLowerCase().trim();
+  if (birthday) {
+    updates.birthday = validateDate(birthday);
+  }
+
+  if (password?.trim() && !oldPassword?.trim()) {
+    throw new ApiError(401, "Please also provide the old password");
+  }
+
+  if (oldPassword?.trim() && password?.trim()) {
+    const existUser = await findUserById(teacherId);
+
+    if (!existUser) {
+      throw new ApiError(401, "Invalid ID. User not found.");
+    }
+
+    const isPasswordMatch = await comparePassword(
+      oldPassword,
+      existUser.password,
+    );
+    if (!isPasswordMatch) {
+      throw new ApiError(401, "Old password does not match");
+    }
+
+    updates.password = await hashPassword(password);
+  }
+
+  const avatarLocalPath = req.file?.path;
+
+  if (avatarLocalPath) {
+    updates.profile = path.join(
+      __dirname,
+      "public",
+      "profile",
+      path.basename(avatarLocalPath),
+    );
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new ApiError(400, "No fields provided to update");
+  }
+
+  // Check for username or email uniqueness
+  if (updates.username || updates.email) {
+    const existUser = await findUserInTables(
+      updates.username || username,
+      updates.email || email,
+    );
+    if (existUser && existUser.id !== teacherId) {
+      throw new ApiError(400, "Username or email already exists");
+    }
+  }
+
+  const updatedTeacher = await updateUser(teacherId, updates, "teacher");
+
+  if (!updatedTeacher) {
+    throw new ApiError(500, "Error while updating teacher profile");
+  }
+
+  // Fetch the updated user data
+  const newUser = await findUserInTables(
+    updates.username || username,
+    updates.email || email,
+  );
+
+  if (!newUser) {
+    throw new ApiError(404, "Update successful but user not found");
+  }
+
+  const { password: _, ...user } = newUser;
+  const accessToken = generateAccessToken(user.id, user.email, user.role);
+
+  return res.status(200).json(
+    new ApiResponse(200, "Teacher updated successfully", {
       user,
       accessToken,
     }),
@@ -380,10 +517,101 @@ const parentSignup = asyncHandler(async (req, res) => {
 
   const { password: _, ...user } = newUser;
 
-  const accessToken = generateAccessToken(user.id, user.email);
+  const accessToken = generateAccessToken(user.id, user.email, user.role);
 
   return res.status(201).json(
     new ApiResponse(201, "Parent Created Successfully", {
+      user,
+      accessToken,
+    }),
+  );
+});
+
+const parentUpdate = asyncHandler(async (req, res) => {
+  const {
+    username,
+    oldPassword,
+    password,
+    email,
+    name,
+    surname,
+    phone,
+    address,
+    parentId,
+  } = req.body;
+
+  if (req.user.role !== "admin") {
+    throw new ApiError(403, "You are not authorized to perform this action");
+  }
+
+  if (!parentId) {
+    throw new ApiError(400, "Parent ID is required");
+  }
+
+  const updates = {};
+  if (username?.trim()) updates.username = username.trim();
+  if (email?.trim()) updates.email = email.toLowerCase().trim();
+  if (name?.trim()) updates.name = name.trim();
+  if (surname?.trim()) updates.surname = surname.trim();
+  if (phone?.trim()) updates.phone = phone.trim();
+  if (address?.trim()) updates.address = address.trim();
+
+  if (password?.trim() && !oldPassword?.trim()) {
+    throw new ApiError(401, "Please also provide the old password");
+  }
+
+  if (oldPassword?.trim() && password?.trim()) {
+    const existUser = await findUserById(parentId);
+
+    if (!existUser) {
+      throw new ApiError(401, "Invalid ID. User not found.");
+    }
+
+    const isPasswordMatch = await comparePassword(
+      oldPassword,
+      existUser.password,
+    );
+    if (!isPasswordMatch) {
+      throw new ApiError(401, "Old password does not match");
+    }
+
+    updates.password = await hashPassword(password);
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new ApiError(400, "No fields provided to update");
+  }
+
+  if (updates.username || updates.email) {
+    const existUser = await findUserInTables(
+      updates.username || username,
+      updates.email || email,
+    );
+    if (existUser && existUser.id !== parentId) {
+      throw new ApiError(400, "Username or email already exists");
+    }
+  }
+
+  const updatedParent = await updateUser(parentId, updates, "parent");
+
+  if (!updatedParent) {
+    throw new ApiError(500, "Error while updating parent profile");
+  }
+
+  const newUser = await findUserInTables(
+    updates.username || username,
+    updates.email || email,
+  );
+
+  if (!newUser) {
+    throw new ApiError(404, "Update successful but user not found");
+  }
+
+  const { password: _, ...user } = newUser;
+  const accessToken = generateAccessToken(user.id, user.email, user.role);
+
+  return res.status(200).json(
+    new ApiResponse(200, "Parent updated successfully", {
       user,
       accessToken,
     }),
@@ -470,10 +698,122 @@ const studentSignup = asyncHandler(async (req, res) => {
 
   const { password: _, ...user } = newUser;
 
-  const accessToken = generateAccessToken(user.id, user.email);
+  const accessToken = generateAccessToken(user.id, user.email, user.role);
 
   return res.status(201).json(
     new ApiResponse(201, "Student Created Successfully", {
+      user,
+      accessToken,
+    }),
+  );
+});
+
+const studentUpdate = asyncHandler(async (req, res) => {
+  const {
+    username,
+    oldPassword,
+    password,
+    name,
+    surname,
+    email,
+    phone,
+    address,
+    bloodType,
+    sex,
+    birthday,
+    studentId,
+  } = req.body;
+
+  if (req.user.role !== "admin") {
+    throw new ApiError(403, "You are not authorized to perform this action");
+  }
+
+  if (!studentId) {
+    throw new ApiError(400, "Student ID is required");
+  }
+
+  const updates = {};
+
+  if (username?.trim()) updates.username = username.trim();
+  if (email?.trim()) updates.email = email.toLowerCase().trim();
+  if (name?.trim()) updates.name = name.trim();
+  if (surname?.trim()) updates.surname = surname.trim();
+  if (phone?.trim()) updates.phone = phone.trim();
+  if (address?.trim()) updates.address = address.trim();
+  if (bloodType?.trim()) updates.bloodType = bloodType.trim();
+  if (sex?.toLowerCase().trim()) updates.sex = sex.toLowerCase().trim();
+  if (birthday) {
+    updates.birthday = validateDate(birthday);
+  }
+
+  if (password?.trim() && !oldPassword?.trim()) {
+    throw new ApiError(401, "Please also provide the old password");
+  }
+
+  if (oldPassword?.trim() && password?.trim()) {
+    const existUser = await findUserById(studentId);
+
+    if (!existUser) {
+      throw new ApiError(401, "Invalid ID. User not found.");
+    }
+
+    const isPasswordMatch = await comparePassword(
+      oldPassword,
+      existUser.password,
+    );
+    if (!isPasswordMatch) {
+      throw new ApiError(401, "Old password does not match");
+    }
+
+    updates.password = await hashPassword(password);
+  }
+
+  const avatarLocalPath = req.file?.path;
+
+  if (avatarLocalPath) {
+    updates.profile = path.join(
+      __dirname,
+      "public",
+      "profile",
+      path.basename(avatarLocalPath),
+    );
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new ApiError(400, "No fields provided to update");
+  }
+
+  if (updates.username || updates.email) {
+    const existUser = await findUserInTables(
+      updates.username || username,
+      updates.email || email,
+    );
+    if (existUser && existUser.id !== studentId) {
+      throw new ApiError(400, "Username or email already exists");
+    }
+  }
+
+  const updatedTeacher = await updateUser(studentId, updates, "student");
+
+  if (!updatedTeacher) {
+    throw new ApiError(500, "Error while updating student profile");
+  }
+
+  // Fetch the updated user data
+  const newUser = await findUserInTables(
+    updates.username || username,
+    updates.email || email,
+  );
+
+  if (!newUser) {
+    throw new ApiError(404, "Update successful but user not found");
+  }
+
+  const { password: _, ...user } = newUser;
+  const accessToken = generateAccessToken(user.id, user.email, user.role);
+
+  return res.status(200).json(
+    new ApiResponse(200, "Student updated successfully", {
       user,
       accessToken,
     }),
@@ -497,7 +837,7 @@ const userLogin = asyncHandler(async (req, res) => {
     throw new ApiError("Invalid credentials. User not found.", 401);
   }
 
-  const isPasswordMatch = await comparePassword(password, user.password);
+  const isPasswordMatch = await comparePassword(password, existUser.password);
 
   if (!isPasswordMatch) {
     throw new ApiError("Invalid username, email, or password.", 401);
@@ -505,7 +845,7 @@ const userLogin = asyncHandler(async (req, res) => {
 
   const { password: _, ...user } = existUser;
 
-  const accessToken = generateAccessToken(user.id, user.email);
+  const accessToken = generateAccessToken(user.id, user.email, user.role);
 
   return res
     .status(200)
@@ -568,8 +908,11 @@ export {
   adminSignup,
   adminUpdate,
   teacherSignup,
+  teacherUpdate,
   parentSignup,
+  parentUpdate,
   studentSignup,
+  studentUpdate,
   userLogin,
   userLogout,
   authenticateUserController,
