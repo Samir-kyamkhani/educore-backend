@@ -7,7 +7,9 @@ import {
   createStudent,
   createTeacher,
   findUserById,
+  findUserByIdAndDelete,
   findUserInTables,
+  findUsers,
   updateUser,
 } from "../queries/user.queries.js";
 import {
@@ -161,6 +163,12 @@ const adminUpdate = asyncHandler(async (req, res) => {
     governmentId,
     schoolEstablished,
   } = req.body;
+
+  const userRole = req.user.role;
+
+  if (userRole !== "admin" && userRole !== "superadmin") {
+    throw new ApiError(403, "You are not authorized to perform this action");
+  }
 
   const updates = {};
 
@@ -896,13 +904,154 @@ const getCurrentUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, "User fetched successfully", user));
 });
 
-// const updateUserAvatar = asyncHandler(async (req, res) => {});
+const getAllAdmins = asyncHandler(async (req, res) => {
+  const userRole = req.user.role;
 
-// const updateUserDetails = asyncHandler(async (req, res) => {});
+  if (userRole !== "superadmin") {
+    throw new ApiError(403, "You are not authorized to perform this action");
+  }
 
-// const changeCurrentPassword = asyncHandler(async (req, res) => {});
+  const admins = await findUsers("admin");
 
-// const refreshAccessToken = asyncHandler(async (req, res) => {});
+  if (!admins.length) {
+    return res.status(404).json(new ApiResponse(404, "No admin users found"));
+  }
+
+  // Remove sensitive fields (e.g., passwords)
+  const sanitizedAdmins = admins.map(({ password, ...admin }) => admin);
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, "All admins fetched successfully", sanitizedAdmins),
+    );
+});
+
+const getAllTeachers = asyncHandler(async (req, res) => {
+  const userRole = req.user.role;
+
+  if (userRole !== "admin") {
+    throw new ApiError(403, "You are not authorized to perform this action");
+  }
+
+  const teachers = await findUsers("teacher");
+
+  if (!teachers.length) {
+    return res.status(404).json(new ApiResponse(404, "No teacher users found"));
+  }
+
+  const sanitizedTeachers = teachers.map(({ password, ...teacher }) => teacher);
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        "All teachers fetched successfully",
+        sanitizedTeachers,
+      ),
+    );
+});
+
+const getAllParents = asyncHandler(async (req, res) => {
+  const userRole = req.user.role;
+
+  if (userRole !== "admin") {
+    throw new ApiError(403, "You are not authorized to perform this action");
+  }
+
+  const parents = await findUsers("parent");
+
+  if (!parents.length) {
+    return res.status(404).json(new ApiResponse(404, "No parents users found"));
+  }
+
+  const sanitizedParents = parents.map(({ password, ...parent }) => parent);
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        "All parents fetched successfully",
+        sanitizedParents,
+      ),
+    );
+});
+
+const getAllStudents = asyncHandler(async (req, res) => {
+  const userRole = req.user.role;
+
+  if (userRole !== "admin") {
+    throw new ApiError(403, "You are not authorized to perform this action");
+  }
+
+  const students = await findUsers("student");
+
+  if (!students.length) {
+    return res.status(404).json(new ApiResponse(404, "No student users found"));
+  }
+
+  const sanitizedStudents = students.map(({ password, ...student }) => student);
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        "All student fetched successfully",
+        sanitizedStudents,
+      ),
+    );
+});
+
+const getSingleUser = asyncHandler(async (req, res) => {
+  const userRole = req.user.role;
+  const userId = req.params.id;
+
+  if (userRole !== "admin") {
+    throw new ApiError(403, "You are not authorized to perform this action");
+  }
+
+  if (!userId) {
+    throw new ApiError(400, "User ID is required");
+  }
+
+  const user = await findUserById(userId);
+
+  if (!user) {
+    return res.status(404).json(new ApiResponse(404, "User not found"));
+  }
+
+  const { password, ...sanitizedUser } = user;
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "User fetched successfully", sanitizedUser));
+});
+
+const deleteSingleUser = asyncHandler(async (req, res) => {
+  const userRole = req.user.role;
+  const userId = req.params.id;
+
+  if (userRole !== "admin" && userRole !== "superadmin") {
+    throw new ApiError(403, "You are not authorized to perform this action");
+  }
+
+  if (!userId) {
+    throw new ApiError(400, "User ID is required");
+  }
+
+  const user = await findUserByIdAndDelete(userId);
+
+  if (!user) {
+    return res.status(404).json(new ApiResponse(404, "User not found"));
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "User deleted successfully", user));
+});
 
 export {
   adminSignup,
@@ -917,4 +1066,10 @@ export {
   userLogout,
   authenticateUserController,
   getCurrentUser,
+  getAllAdmins,
+  getAllTeachers,
+  getAllParents,
+  getAllStudents,
+  getSingleUser,
+  deleteSingleUser,
 };

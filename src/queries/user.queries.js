@@ -212,7 +212,7 @@ export const findUserById = async (id) => {
 
 export const updateUser = async (id, updates, table) => {
   const allowedTables = ["admin", "student", "teacher", "parent"];
-  if (!allowedTables.includes(table)) throw new Error("Invalid table name");
+  if (!allowedTables.includes(table)) throw new ApiError("Invalid table name");
 
   const setClause = Object.keys(updates)
     .map((key) => `${key} = ?`)
@@ -226,4 +226,44 @@ export const updateUser = async (id, updates, table) => {
   } catch (error) {
     throw error;
   }
+};
+
+export const findUsers = async (table) => {
+  const allowedTables = ["admin", "student", "teacher", "parent"];
+
+  // Validate the table name
+  if (!allowedTables.includes(table)) {
+    throw new ApiError("Invalid table name");
+  }
+
+  // Query to fetch all rows from the table
+  const query = `SELECT * FROM ??`;
+  const queryParams = [table];
+
+  const [result] = await pool.query(query, queryParams);
+
+  // Add role field to each user in the result
+  return result.map((user) => ({ ...user, role: table }));
+};
+
+export const findUserByIdAndDelete = async (id) => {
+  const tables = ["admin", "student", "teacher", "parent"];
+
+  for (const table of tables) {
+    const selectQuery = `SELECT * FROM ?? WHERE id = ?`;
+    const queryParams = [table, id];
+    const [result] = await pool.query(selectQuery, queryParams);
+
+    if (result.length > 0) {
+      const user = { ...result[0], role: table };
+
+      // Query to delete the user
+      const deleteQuery = `DELETE FROM ?? WHERE id = ?`;
+      await pool.query(deleteQuery, queryParams);
+
+      return user;
+    }
+  }
+
+  return null; // Return null if no user is found in any table
 };
