@@ -69,9 +69,9 @@ router.route("/update-admin").put(
   ]),
   adminUpdate,
 );
-router.route("/update-teacher").put(authenticateUser, upload.single("profile"), teacherUpdate);
-router.route("/update-parent").put(authenticateUser, parentUpdate);
-router.route("/update-student").put(authenticateUser, upload.single("profile"), studentUpdate);
+router.route("/update-teacher/:id").put(authenticateUser, upload.single("profile"), teacherUpdate);
+router.route("/update-parent/:id").put(authenticateUser, parentUpdate);
+router.route("/update-student/:id").put(authenticateUser, upload.single("profile"), studentUpdate);
 
 
 //delete
