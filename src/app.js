@@ -18,8 +18,10 @@ app.use(express.static("public"));
 app.use(cookieParser());
 
 import userSignup from "./routes/user.routes.js";
+import otherThings from "./routes/other.routes.js";
 
 //router decleration
 app.use("/api/v1/users", userSignup);
+app.use("/api/v1/posts", otherThings);
 
 export default app;
