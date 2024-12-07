@@ -371,6 +371,8 @@ const teacherSignup = asyncHandler(async (req, res) => {
 });
 
 const teacherUpdate = asyncHandler(async (req, res) => {
+  const { teacherId } = req.params;
+
   const {
     username,
     oldPassword,
@@ -383,7 +385,6 @@ const teacherUpdate = asyncHandler(async (req, res) => {
     bloodType,
     sex,
     birthday,
-    teacherId, // Added to specify which teacher to update
   } = req.body;
 
   if (req.user.role !== "admin") {
@@ -536,6 +537,8 @@ const parentSignup = asyncHandler(async (req, res) => {
 });
 
 const parentUpdate = asyncHandler(async (req, res) => {
+  const { parentId } = req.params;
+
   const {
     username,
     oldPassword,
@@ -545,7 +548,6 @@ const parentUpdate = asyncHandler(async (req, res) => {
     surname,
     phone,
     address,
-    parentId,
   } = req.body;
 
   if (req.user.role !== "admin") {
@@ -717,6 +719,8 @@ const studentSignup = asyncHandler(async (req, res) => {
 });
 
 const studentUpdate = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+
   const {
     username,
     oldPassword,
@@ -729,7 +733,6 @@ const studentUpdate = asyncHandler(async (req, res) => {
     bloodType,
     sex,
     birthday,
-    studentId,
   } = req.body;
 
   if (req.user.role !== "admin") {
