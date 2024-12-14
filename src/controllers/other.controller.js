@@ -10,10 +10,10 @@ import {
   createLesson,
   createResult,
   createSubject,
-  fetchUpdatedDataById,
-  findById,
-  findRecords,
-  findSingleRecordById,
+  fetchUpdatedDataByIdAndSchool,
+  findByIdAndSchool,
+  findRecordsBySchool,
+  findSingleRecordByIdAndSchool,
   updateAnnouncementDetails,
   updateAssignmentDetails,
   updateAttendanceDetails,
@@ -31,26 +31,37 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 
 const createGradeHandler = asyncHandler(async (req, res) => {
   const { level } = req.body;
+  const { school_id } = req.user;
+
+  if (!school_id) {
+    throw new ApiError(400, "School ID is missing");
+  }
 
   if (!level || level === "") {
     throw new ApiError(400, "Grade level is required");
   }
 
-  const gradeData = await createGrade({ level: level });
+  const gradeData = await createGrade({
+    level: level,
+    school_id,
+  });
 
   if (!gradeData) {
     throw new ApiError(500, "Error while creating grade");
   }
 
-  return res.status(201).json(
-    new ApiResponse(201, "Grade Created Successfully", {
-      level: level,
-    }),
-  );
+  return res
+    .status(201)
+    .json(new ApiResponse(201, "Grade Created Successfully", gradeData));
 });
 
 const createClassHandler = asyncHandler(async (req, res) => {
   const { name, capacity, supervisorId, gradeId } = req.body;
+  const { school_id } = req.user;
+
+  if (!school_id) {
+    throw new ApiError(400, "School ID is missing");
+  }
 
   if (!name || !capacity || !gradeId) {
     throw new ApiError(400, "Name, capacity, and grade ID are required");
@@ -61,47 +72,54 @@ const createClassHandler = asyncHandler(async (req, res) => {
     capacity,
     supervisorId,
     gradeId,
+    school_id,
   });
 
   if (!classData) {
     throw new ApiError(500, "Error while creating class");
   }
 
-  return res.status(201).json(
-    new ApiResponse(201, "Class Created Successfully", {
-      name: name.trim(),
-      capacity,
-      supervisorId,
-      gradeId,
-    }),
-  );
+  return res
+    .status(201)
+    .json(new ApiResponse(201, "Class Created Successfully", classData));
 });
 
 const createSubjectHandler = asyncHandler(async (req, res) => {
   const { name } = req.body;
+  const { school_id } = req.user;
 
-  if (!name) {
-    throw new ApiError(400, "Subject name is required");
+  if (!school_id) {
+    throw new ApiError(400, "School ID is missing");
   }
 
+  if (!name || typeof name !== "string" || name.trim().length === 0) {
+    throw new ApiError(400, "Subject name is required and cannot be empty");
+  }
+
+  const subjectName = name.trim();
+
   const subjectData = await createSubject({
-    name: name.trim(),
+    name: subjectName,
+    school_id,
   });
 
   if (!subjectData) {
     throw new ApiError(500, "Error while creating subject");
   }
 
-  return res.status(201).json(
-    new ApiResponse(201, "Subject Created Successfully", {
-      name: name.trim(),
-    }),
-  );
+  return res
+    .status(201)
+    .json(new ApiResponse(201, "Subject Created Successfully", subjectData));
 });
 
 const createLessonHandler = asyncHandler(async (req, res) => {
   const { name, day, startTime, endTime, subjectId, classId, teacherId } =
     req.body;
+  const { school_id } = req.user;
+
+  if (!school_id) {
+    throw new ApiError(400, "School ID is missing");
+  }
 
   if (
     !name ||
@@ -116,13 +134,14 @@ const createLessonHandler = asyncHandler(async (req, res) => {
   }
 
   const lessonData = await createLesson({
-    name,
+    name: name.trim(),
     day,
     startTime,
     endTime,
     subjectId,
     classId,
     teacherId,
+    school_id,
   });
 
   if (!lessonData) {
@@ -135,28 +154,51 @@ const createLessonHandler = asyncHandler(async (req, res) => {
 });
 
 const createExamHandler = asyncHandler(async (req, res) => {
-  const { title, startTime, endTime, lessonId } = req.body;
+  const { title, date, startTime, endTime, lessonId } = req.body;
+  const { school_id } = req.user;
 
-  if (!title || !startTime || !endTime || !lessonId) {
-    throw new ApiError(400, "All fields are required");
+  if (!school_id) {
+    throw new ApiError(400, "School ID is missing.");
   }
 
-  const examData = await createExam({ title, startTime, endTime, lessonId });
+  if (!title || !date || !startTime || !endTime || !lessonId) {
+    throw new ApiError(
+      400,
+      "All fields (title, date, startTime, endTime, lessonId) are required.",
+    );
+  }
+
+  const examData = await createExam({
+    title,
+    date,
+    startTime,
+    endTime,
+    lessonId,
+    school_id,
+  });
 
   if (!examData) {
-    throw new ApiError(500, "Error creating exam");
+    throw new ApiError(500, "Error creating exam.");
   }
 
   return res
     .status(201)
-    .json(new ApiResponse(201, "Exam Created Successfully", examData));
+    .json(new ApiResponse(201, "Exam created successfully.", examData));
 });
 
 const createAssignmentHandler = asyncHandler(async (req, res) => {
   const { title, startDate, dueDate, lessonId } = req.body;
+  const { school_id } = req.user;
+
+  if (!school_id) {
+    throw new ApiError(400, "School ID is missing");
+  }
 
   if (!title || !startDate || !dueDate || !lessonId) {
-    throw new ApiError(400, "All fields are required");
+    throw new ApiError(
+      400,
+      "All fields (title, startDate, dueDate, lessonId) are required",
+    );
   }
 
   const assignmentData = await createAssignment({
@@ -164,6 +206,7 @@ const createAssignmentHandler = asyncHandler(async (req, res) => {
     startDate,
     dueDate,
     lessonId,
+    school_id,
   });
 
   if (!assignmentData) {
@@ -179,9 +222,24 @@ const createAssignmentHandler = asyncHandler(async (req, res) => {
 
 const createResultHandler = asyncHandler(async (req, res) => {
   const { score, examId, assignmentId, studentId } = req.body;
+  const { school_id } = req.user;
+
+  if (!school_id) {
+    throw new ApiError(400, "School ID is missing");
+  }
 
   if (!score || (!examId && !assignmentId) || !studentId) {
-    throw new ApiError(400, "All fields are required");
+    throw new ApiError(
+      400,
+      "All fields are required (score, examId/assignmentId, studentId)",
+    );
+  }
+
+  if (examId && assignmentId) {
+    throw new ApiError(
+      400,
+      "Provide only one of examId or assignmentId, not both",
+    );
   }
 
   const resultData = await createResult({
@@ -189,6 +247,7 @@ const createResultHandler = asyncHandler(async (req, res) => {
     examId,
     assignmentId,
     studentId,
+    school_id,
   });
 
   if (!resultData) {
@@ -202,9 +261,25 @@ const createResultHandler = asyncHandler(async (req, res) => {
 
 const createAttendanceHandler = asyncHandler(async (req, res) => {
   const { date, present, studentId, lessonId } = req.body;
+  const { school_id } = req.user;
+
+  if (!school_id) {
+    throw new ApiError(400, "School ID is missing");
+  }
 
   if (!date || present === undefined || !studentId || !lessonId) {
-    throw new ApiError(400, "All fields are required");
+    throw new ApiError(
+      400,
+      "All fields (date, present, studentId, lessonId) are required",
+    );
+  }
+
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(date)) {
+    throw new ApiError(
+      400,
+      "Invalid date format. Use 'YYYY-MM-DD' (e.g., '2024-06-15').",
+    );
   }
 
   const attendanceData = await createAttendance({
@@ -212,6 +287,7 @@ const createAttendanceHandler = asyncHandler(async (req, res) => {
     present,
     studentId,
     lessonId,
+    school_id,
   });
 
   if (!attendanceData) {
@@ -231,9 +307,26 @@ const createAttendanceHandler = asyncHandler(async (req, res) => {
 
 const createEventHandler = asyncHandler(async (req, res) => {
   const { title, description, startDate, endDate, classId } = req.body;
+  const { school_id } = req.user;
+
+  if (!school_id) {
+    throw new ApiError(400, "School ID is missing");
+  }
 
   if (!title || !description || !startDate || !endDate) {
-    throw new ApiError(400, "All fields are required");
+    throw new ApiError(
+      400,
+      "All fields (title, description, startDate, endDate) are required",
+    );
+  }
+
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+    throw new ApiError(400, "Invalid date format. Use 'YYYY-MM-DD'.");
+  }
+
+  if (new Date(startDate) >= new Date(endDate)) {
+    throw new ApiError(400, "Start date must be earlier than end date");
   }
 
   const eventData = await createEvent({
@@ -242,6 +335,7 @@ const createEventHandler = asyncHandler(async (req, res) => {
     startDate,
     endDate,
     classId,
+    school_id,
   });
 
   if (!eventData) {
@@ -255,16 +349,22 @@ const createEventHandler = asyncHandler(async (req, res) => {
 
 const createAnnouncementHandler = asyncHandler(async (req, res) => {
   const { title, description, date, classId } = req.body;
+  const { school_id } = req.user;
+
+  if (!school_id) {
+    throw new ApiError(400, "School ID is missing");
+  }
 
   if (!title || !description || !date) {
     throw new ApiError(400, "Title, description, and date are required");
   }
 
   const announcementData = await createAnnouncement({
-    title,
-    description,
+    title: title.trim(),
+    description: description.trim(),
     date,
     classId,
+    school_id,
   });
 
   if (!announcementData) {
@@ -284,9 +384,9 @@ const createAnnouncementHandler = asyncHandler(async (req, res) => {
 
 export const deleteRecord = asyncHandler(async (req, res) => {
   const { table, id } = req.params;
-  const { role } = req.user;
+  const { school_id, role } = req.user;
 
-  if (role !== "admin" && role !== "superadmin") {
+  if (role !== "admin") {
     throw new ApiError(403, "You are not authorized to perform this action");
   }
 
@@ -294,15 +394,18 @@ export const deleteRecord = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Table name and ID are required");
   }
 
-  const selectQuery = `SELECT * FROM ?? WHERE id = ?`;
-  const [record] = await pool.query(selectQuery, [table, id]);
+  const selectQuery = `SELECT * FROM ?? WHERE id = ? AND school_id = ?`;
+  const [record] = await pool.query(selectQuery, [table, id, school_id]);
 
   if (record.length === 0) {
-    throw new ApiError(404, `${table.slice(0, -1)} not found`);
+    throw new ApiError(
+      404,
+      `The requested ${table.slice(0, -1)} was not found or does not belong to your school`,
+    );
   }
 
-  const deleteQuery = `DELETE FROM ?? WHERE id = ?`;
-  const [result] = await pool.query(deleteQuery, [table, id]);
+  const deleteQuery = `DELETE FROM ?? WHERE id = ? AND school_id = ?`;
+  const [result] = await pool.query(deleteQuery, [table, id, school_id]);
 
   if (result.affectedRows === 0) {
     throw new ApiError(500, `Failed to delete the ${table.slice(0, -1)}`);
@@ -323,19 +426,34 @@ export const deleteRecord = asyncHandler(async (req, res) => {
 const updateClass = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { name, capacity, supervisorId, gradeId } = req.body;
+  const school_id = req.user.school_id;
 
   if (!name || !capacity || !gradeId) {
     throw new ApiError(400, "Name, capacity, and grade ID are required");
   }
 
-  const classExists = await findById(id, "class");
+  const classExists = await findByIdAndSchool(id, "class", school_id);
   if (!classExists) {
-    throw new ApiError(404, "Class not found");
+    throw new ApiError(
+      404,
+      "Class not found or does not belong to your school",
+    );
   }
 
-  await updateClassDetails(id, name, capacity, supervisorId, gradeId);
+  await updateClassDetails(
+    id,
+    name,
+    capacity,
+    supervisorId,
+    gradeId,
+    school_id,
+  );
 
-  const updatedClass = await fetchUpdatedDataById(id, "class");
+  const updatedClass = await fetchUpdatedDataByIdAndSchool(
+    id,
+    "class",
+    school_id,
+  );
 
   return res
     .status(200)
@@ -345,19 +463,28 @@ const updateClass = asyncHandler(async (req, res) => {
 const updateSubject = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { name } = req.body;
+  const school_id = req.user.school_id;
+
+  if (!school_id) {
+    throw new ApiError(400, "School ID is missing");
+  }
 
   if (!name) {
     throw new ApiError(400, "Subject name is required");
   }
 
-  const subjectExists = await findById(id, "subject");
+  const subjectExists = await findByIdAndSchool(id, "subject", school_id);
   if (!subjectExists) {
     throw new ApiError(404, "Subject not found");
   }
 
-  await updateSubjectDetails(id, name);
+  await updateSubjectDetails(id, name, school_id);
 
-  const updatedSubject = await fetchUpdatedDataById(id, "subject");
+  const updatedSubject = await fetchUpdatedDataByIdAndSchool(
+    id,
+    "subject",
+    school_id,
+  );
 
   return res
     .status(200)
@@ -368,6 +495,11 @@ const updateLesson = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { name, day, startTime, endTime, subjectId, classId, teacherId } =
     req.body;
+  const { school_id } = req.user;
+
+  if (!school_id) {
+    throw new ApiError(400, "School ID is missing");
+  }
 
   if (
     !name ||
@@ -381,23 +513,28 @@ const updateLesson = asyncHandler(async (req, res) => {
     throw new ApiError(400, "All fields are required");
   }
 
-  const lessonExists = await findById(id, "lesson");
+  const lessonExists = await findByIdAndSchool(id, "lesson", school_id);
   if (!lessonExists) {
     throw new ApiError(404, "Lesson not found");
   }
 
   await updateLessonDetails(
     id,
-    name,
+    name.trim(),
     day,
     startTime,
     endTime,
     subjectId,
     classId,
     teacherId,
+    school_id,
   );
 
-  const updatedLesson = await fetchUpdatedDataById(id, "lesson");
+  const updatedLesson = await fetchUpdatedDataByIdAndSchool(
+    id,
+    "lesson",
+    school_id,
+  );
 
   return res
     .status(200)
@@ -406,20 +543,37 @@ const updateLesson = asyncHandler(async (req, res) => {
 
 const updateExam = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { title, startTime, endTime, lessonId } = req.body;
+  const { title, date, startTime, endTime, lessonId } = req.body;
+  const { school_id } = req.user;
 
-  if (!title || !startTime || !endTime || !lessonId) {
+  if (!school_id) {
+    throw new ApiError(400, "School ID is missing");
+  }
+
+  if (!title || !date || !startTime || !endTime || !lessonId) {
     throw new ApiError(400, "All fields are required");
   }
 
-  const examExists = await findById(id, "exam");
+  const examExists = await findByIdAndSchool(id, "exam", school_id);
   if (!examExists) {
-    throw new ApiError(404, "Exam not found");
+    throw new ApiError(404, "Exam not found for this school");
   }
 
-  await updateExamDetails(id, title, startTime, endTime, lessonId);
+  await updateExamDetails(
+    id,
+    title,
+    date,
+    startTime,
+    endTime,
+    lessonId,
+    school_id,
+  );
 
-  const updatedExam = await fetchUpdatedDataById(id, "exam");
+  const updatedExam = await fetchUpdatedDataByIdAndSchool(
+    id,
+    "exam",
+    school_id,
+  );
 
   return res
     .status(200)
@@ -429,21 +583,38 @@ const updateExam = asyncHandler(async (req, res) => {
 const updateAssignment = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { title, startDate, dueDate, lessonId } = req.body;
+  const school_id = req.user.school_id;
 
   if (!title || !startDate || !dueDate || !lessonId) {
-    throw new ApiError(400, "All fields are required");
+    throw new ApiError(
+      400,
+      "All fields (title, startDate, dueDate, lessonId) are required",
+    );
   }
 
-  const assignmentExists = await findById(id, "assignment");
+  const assignmentExists = await findByIdAndSchool(id, "assignment", school_id);
   if (!assignmentExists) {
-    throw new ApiError(404, "Assignment not found");
+    throw new ApiError(
+      404,
+      `Assignment with ID ${id} not found for this school.`,
+    );
   }
 
-  await updateAssignmentDetails(id, title, startDate, dueDate, lessonId);
+  await updateAssignmentDetails({
+    id,
+    title,
+    startDate,
+    dueDate,
+    lessonId,
+    school_id,
+  });
 
-  const updatedAssignment = await fetchUpdatedDataById(id, "assignment");
+  const updatedAssignment = await fetchUpdatedDataByIdAndSchool(
+    id,
+    "assignment",
+    school_id,
+  );
 
-  // Send response
   return res
     .status(200)
     .json(
@@ -455,22 +626,94 @@ const updateAssignment = asyncHandler(async (req, res) => {
     );
 });
 
+const updateResult = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { score, examId, assignmentId, studentId } = req.body;
+  const { school_id } = req.user;
+
+  if (!school_id) {
+    throw new ApiError(400, "School ID is missing");
+  }
+
+  if (!score || (!examId && !assignmentId) || !studentId) {
+    throw new ApiError(
+      400,
+      "All fields are required (score, examId/assignmentId, studentId)",
+    );
+  }
+
+  if (examId && assignmentId) {
+    throw new ApiError(
+      400,
+      "Provide only one of examId or assignmentId, not both",
+    );
+  }
+
+  const resultExists = await findByIdAndSchool(id, "result", school_id);
+  if (!resultExists) {
+    throw new ApiError(404, `Result with ID ${id} not found for this school.`);
+  }
+
+  await updateResultDetails({
+    id,
+    score,
+    examId,
+    assignmentId,
+    studentId,
+    school_id,
+  });
+
+  const updatedResult = await fetchUpdatedDataByIdAndSchool(
+    id,
+    "result",
+    school_id,
+  );
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "Result updated successfully", updatedResult));
+});
+
 const updateAttendance = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { date, present, studentId, lessonId } = req.body;
+  const school_id = req.user.school_id;
 
   if (!date || present === undefined || !studentId || !lessonId) {
-    throw new ApiError(400, "All fields are required");
+    throw new ApiError(
+      400,
+      "All fields (date, present, studentId, lessonId) are required",
+    );
   }
 
-  const attendanceExists = await findById(id, "attendance");
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(date)) {
+    throw new ApiError(
+      400,
+      "Invalid date format. Use 'YYYY-MM-DD' (e.g., '2024-06-15').",
+    );
+  }
+
+  const attendanceExists = await findByIdAndSchool(id, "attendance", school_id);
   if (!attendanceExists) {
     throw new ApiError(404, "Attendance record not found");
   }
 
-  await updateAttendanceDetails(id, date, present, studentId, lessonId);
+  // Update the attendance details
+  await updateAttendanceDetails(
+    id,
+    date,
+    present,
+    studentId,
+    lessonId,
+    school_id,
+  );
 
-  const updatedAttendance = await fetchUpdatedDataById(id, "attendance");
+  const updatedAttendance = await fetchUpdatedDataByIdAndSchool(
+    id,
+    "attendance",
+    school_id,
+  );
 
   return res
     .status(200)
@@ -486,19 +729,46 @@ const updateAttendance = asyncHandler(async (req, res) => {
 const updateAnnouncement = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { title, description, date, classId } = req.body;
+  const { school_id } = req.user;
+
+  if (!school_id) {
+    throw new ApiError(400, "School ID is missing");
+  }
 
   if (!title || !description || !date) {
     throw new ApiError(400, "Title, description, and date are required");
   }
 
-  const announcementExists = await findById(id, "announcement");
+  const announcementExists = await findByIdAndSchool(
+    id,
+    "announcement",
+    school_id,
+  );
   if (!announcementExists) {
-    throw new ApiError(404, "Announcement not found");
+    throw new ApiError(
+      404,
+      "Announcement not found or does not belong to your school",
+    );
+  }
+
+  if (classId) {
+    const classQuery = "SELECT id FROM class WHERE id = ? AND school_id = ?";
+    const [classExists] = await pool.query(classQuery, [classId, school_id]);
+    if (classExists.length === 0) {
+      throw new ApiError(
+        404,
+        "Class not found or does not belong to your school",
+      );
+    }
   }
 
   await updateAnnouncementDetails(id, title, description, date, classId);
 
-  const updatedAnnouncement = await fetchUpdatedDataById(id, "announcement");
+  const updatedAnnouncement = await fetchUpdatedDataByIdAndSchool(
+    id,
+    "announcement",
+    school_id,
+  );
 
   return res
     .status(200)
@@ -514,53 +784,50 @@ const updateAnnouncement = asyncHandler(async (req, res) => {
 const updateGrade = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { level } = req.body;
+  const school_id = req.user.school_id;
 
-  if (!level) {
-    throw new ApiError(400, "level are required");
+  if (!id || !level) {
+    throw new ApiError(400, "Grade ID and level are required");
   }
 
-  const gradeExists = await findById(id, "grade");
+  const gradeExists = await findByIdAndSchool(id, "grade", school_id);
   if (!gradeExists) {
     throw new ApiError(404, "Grade not found");
   }
 
+  const existingGradeQuery = `
+    SELECT * FROM grade WHERE level = ? AND id != ? AND school_id = ?`;
+  const [existingGrade] = await pool.query(existingGradeQuery, [
+    level,
+    id,
+    gradeExists.school_id,
+  ]);
+
+  if (existingGrade.length > 0) {
+    throw new ApiError(400, "Another grade with the same level already exists");
+  }
+
   await updateGradeDetails(id, level);
 
-  const updatedGrade = await fetchUpdatedDataById(id, "grade");
+  const updatedGrade = await fetchUpdatedDataByIdAndSchool(
+    id,
+    "grade",
+    school_id,
+  );
+
+  if (!updatedGrade) {
+    throw new ApiError(500, "Failed to fetch updated grade");
+  }
 
   return res
     .status(200)
     .json(new ApiResponse(200, "Grade updated successfully", updatedGrade));
 });
 
-const updateResult = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { score, examId, assignmentId, studentId } = req.body;
-
-  if (!score || (!examId && !assignmentId) || !studentId) {
-    throw new ApiError(
-      400,
-      "Score, exam or assignment ID, and student ID are required",
-    );
-  }
-
-  const resultExists = await findById(id, "result");
-  if (!resultExists) {
-    throw new ApiError(404, "Result not found");
-  }
-
-  await updateResultDetails(id, score, examId, assignmentId, studentId);
-
-  const updatedResult = await fetchUpdatedDataById(id, "result");
-
-  return res
-    .status(200)
-    .json(new ApiResponse(200, "Result updated successfully", updatedResult));
-});
-
 const updateEvent = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { title, description, startDate, endDate, classId } = req.body;
+  const school_id = req.user.school_id;
 
   if (!title || !description || !startDate || !endDate) {
     throw new ApiError(
@@ -569,14 +836,37 @@ const updateEvent = asyncHandler(async (req, res) => {
     );
   }
 
-  const eventExists = await findById(id, "event");
-  if (!eventExists) {
-    throw new ApiError(404, "Event not found");
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+    throw new ApiError(400, "Invalid date format. Use 'YYYY-MM-DD'.");
+  }
+  if (new Date(startDate) >= new Date(endDate)) {
+    throw new ApiError(400, "Start date must be earlier than end date.");
   }
 
-  await updateEventDetails(id, title, description, startDate, endDate, classId);
+  const eventExists = await findByIdAndSchool(id, "event", school_id);
+  if (!eventExists) {
+    throw new ApiError(
+      404,
+      "Event not found or does not belong to your school.",
+    );
+  }
 
-  const updatedEvent = await fetchUpdatedDataById(id, "event");
+  await updateEventDetails(
+    id,
+    title,
+    description,
+    startDate,
+    endDate,
+    classId,
+    school_id,
+  );
+
+  const updatedEvent = await fetchUpdatedDataByIdAndSchool(
+    id,
+    "event",
+    school_id,
+  );
 
   return res
     .status(200)
@@ -585,15 +875,19 @@ const updateEvent = asyncHandler(async (req, res) => {
 
 const getSingleRecord = asyncHandler(async (req, res) => {
   const { table, id } = req.params;
+  const { school_id } = req.user;
 
   if (!table || !id) {
     throw new ApiError(400, "Table name and ID are required");
   }
 
-  const record = await findSingleRecordById(table, id);
+  const record = await findSingleRecordByIdAndSchool(table, id, school_id);
 
   if (!record) {
-    return res.status(404).json(new ApiResponse(404, "Record not found"));
+    throw new ApiError(
+      404,
+      `The requested ${table.slice(0, -1)} was not found or does not belong to your school.`,
+    );
   }
 
   return res
@@ -602,7 +896,9 @@ const getSingleRecord = asyncHandler(async (req, res) => {
 });
 
 const getAllGrades = asyncHandler(async (req, res) => {
-  const grades = await findRecords("grade");
+  const { school_id } = req.user;
+
+  const grades = await findRecordsBySchool("grade", school_id);
 
   if (!grades || grades.length === 0) {
     return res.status(404).json(new ApiResponse(404, "No grades found"));
@@ -614,7 +910,9 @@ const getAllGrades = asyncHandler(async (req, res) => {
 });
 
 const getAllClasses = asyncHandler(async (req, res) => {
-  const classes = await findRecords("class");
+  const { school_id } = req.user;
+
+  const classes = await findRecordsBySchool("class", school_id);
 
   if (!classes || classes.length === 0) {
     return res.status(404).json(new ApiResponse(404, "Classes not found"));
@@ -626,10 +924,12 @@ const getAllClasses = asyncHandler(async (req, res) => {
 });
 
 const getAllSubjects = asyncHandler(async (req, res) => {
-  const subjects = await findRecords("subject");
+  const { school_id } = req.user;
+
+  const subjects = await findRecordsBySchool("subject", school_id);
 
   if (!subjects || subjects.length === 0) {
-    return res.status(404).json(new ApiResponse(404, "subjects not found"));
+    return res.status(404).json(new ApiResponse(404, "Subjects not found"));
   }
 
   return res
@@ -638,7 +938,9 @@ const getAllSubjects = asyncHandler(async (req, res) => {
 });
 
 const getAllLessons = asyncHandler(async (req, res) => {
-  const lessons = await findRecords("lesson");
+  const { school_id } = req.user;
+
+  const lessons = await findRecordsBySchool("lesson", school_id);
 
   if (!lessons || lessons.length === 0) {
     return res.status(404).json(new ApiResponse(404, "Lessons not found"));
@@ -650,7 +952,9 @@ const getAllLessons = asyncHandler(async (req, res) => {
 });
 
 const getAllExams = asyncHandler(async (req, res) => {
-  const exams = await findRecords("exam");
+  const { school_id } = req.user;
+
+  const exams = await findRecordsBySchool("exam", school_id);
 
   if (!exams || exams.length === 0) {
     return res.status(404).json(new ApiResponse(404, "exams not found"));
@@ -662,7 +966,9 @@ const getAllExams = asyncHandler(async (req, res) => {
 });
 
 const getAllAssignments = asyncHandler(async (req, res) => {
-  const assignments = await findRecords("assignment");
+  const { school_id } = req.user;
+
+  const assignments = await findRecordsBySchool("assignment", school_id);
 
   if (!assignments || assignments.length === 0) {
     return res.status(404).json(new ApiResponse(404, "assignments not found"));
@@ -676,7 +982,9 @@ const getAllAssignments = asyncHandler(async (req, res) => {
 });
 
 const getAllResults = asyncHandler(async (req, res) => {
-  const results = await findRecords("result");
+  const { school_id } = req.user;
+
+  const results = await findRecordsBySchool("result", school_id);
 
   if (!results || results.length === 0) {
     return res.status(404).json(new ApiResponse(404, "results not found"));
@@ -688,21 +996,34 @@ const getAllResults = asyncHandler(async (req, res) => {
 });
 
 const getAllAttendances = asyncHandler(async (req, res) => {
-  const attendances = await findRecords("attendance");
+  const { school_id } = req.user;
+
+  const attendances = await findRecordsBySchool("attendance", school_id);
 
   if (!attendances || attendances.length === 0) {
-    return res.status(404).json(new ApiResponse(404, "attendances not found"));
+    return res.status(404).json(new ApiResponse(404, "Attendances not found"));
   }
+
+  const updatedAttendances = attendances.map((attendance) => ({
+    ...attendance,
+    present: attendance.present === 0 ? "false" : "true",
+  }));
 
   return res
     .status(200)
     .json(
-      new ApiResponse(200, "All attendances fetched successfully", attendances),
+      new ApiResponse(
+        200,
+        "All attendances fetched successfully",
+        updatedAttendances,
+      ),
     );
 });
 
 const getAllEvents = asyncHandler(async (req, res) => {
-  const events = await findRecords("event");
+  const { school_id } = req.user;
+
+  const events = await findRecordsBySchool("event", school_id);
 
   if (!events || events.length === 0) {
     return res.status(404).json(new ApiResponse(404, "events not found"));
@@ -714,7 +1035,9 @@ const getAllEvents = asyncHandler(async (req, res) => {
 });
 
 const getAllAnnouncements = asyncHandler(async (req, res) => {
-  const announcements = await findRecords("announcement");
+  const { school_id } = req.user;
+
+  const announcements = await findRecordsBySchool("announcement", school_id);
 
   if (!announcements || announcements.length === 0) {
     return res
@@ -749,10 +1072,10 @@ export {
   updateLesson,
   updateExam,
   updateAssignment,
+  updateResult,
   updateAttendance,
   updateAnnouncement,
   updateGrade,
-  updateResult,
   updateEvent,
   getAllGrades,
   getSingleRecord,

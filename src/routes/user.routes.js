@@ -38,13 +38,18 @@ router.route("/signup").post(
   adminSignup,
 );
 router.route("/login").post(userLogin);
-router.route("/create-teacher").post(authenticateUser, upload.single("profile"), teacherSignup);
+router
+  .route("/create-teacher")
+  .post(authenticateUser, upload.single("profile"), teacherSignup);
 router.route("/create-parent").post(authenticateUser, parentSignup);
-router.route("/create-student").post(authenticateUser, upload.single("profile"), studentSignup);
-router.route("/protected-route").get(authenticateUser, authenticateUserController);
+router
+  .route("/create-student")
+  .post(authenticateUser, upload.single("profile"), studentSignup);
+router
+  .route("/protected-route")
+  .get(authenticateUser, authenticateUserController);
 router.route("/get-current-user").get(authenticateUser, getCurrentUser);
 router.route("/logout").post(authenticateUser, userLogout);
-
 
 //Fetch data
 
@@ -69,13 +74,15 @@ router.route("/update-admin").put(
   ]),
   adminUpdate,
 );
-router.route("/update-teacher/:id").put(authenticateUser, upload.single("profile"), teacherUpdate);
+router
+  .route("/update-teacher/:id")
+  .put(authenticateUser, upload.single("profile"), teacherUpdate);
 router.route("/update-parent/:id").put(authenticateUser, parentUpdate);
-router.route("/update-student/:id").put(authenticateUser, upload.single("profile"), studentUpdate);
-
+router
+  .route("/update-student/:id")
+  .put(authenticateUser, upload.single("profile"), studentUpdate);
 
 //delete
 router.route("/delete-user/:id").delete(authenticateUser, deleteSingleUser);
-
 
 export default router;

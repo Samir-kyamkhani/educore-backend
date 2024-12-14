@@ -64,13 +64,14 @@ export const createTeacher = async ({
   sex,
   profile,
   birthday,
+  school_id,
 }) => {
   try {
     const hashedPassword = await hashPassword(password);
 
     const query = `
-       INSERT INTO teacher (username, password, name, surname, email, phone, address, bloodType, sex, birthday, profile, createdAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
+       INSERT INTO teacher (username, password, name, surname, email, phone, address, bloodType, sex, birthday, profile, school_id, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
 
     const params = [
       username,
@@ -84,6 +85,7 @@ export const createTeacher = async ({
       sex,
       birthday,
       profile,
+      school_id,
     ];
 
     const data = await pool.query(query, params);
@@ -101,13 +103,14 @@ export const createParent = async ({
   email,
   phone,
   address,
+  school_id,
 }) => {
   try {
     const hashedPassword = await hashPassword(password);
 
     const query = `
-        INSERT INTO parent (username, password, name, surname, email, phone, address, createdAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`;
+        INSERT INTO parent (username, password, name, surname, email, phone, address, school_id, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
 
     const params = [
       username,
@@ -117,6 +120,7 @@ export const createParent = async ({
       email,
       phone,
       address,
+      school_id,
     ];
 
     const data = await pool.query(query, params);
@@ -138,12 +142,16 @@ export const createStudent = async ({
   sex,
   birthday,
   profile,
+  parentId,
+  classId,
+  gradeId,
+  school_id,
 }) => {
   try {
     const hashedPassword = await hashPassword(password);
 
-    const query = `INSERT INTO student (username, password, name, surname, email, phone, address, bloodType, sex, birthday, profile, createdAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
+    const query = `INSERT INTO student (username, password, name, surname, email, phone, address, bloodType, sex, birthday, profile, parentId, classId, gradeId, school_id, createdAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
 
     const params = [
       username,
@@ -157,6 +165,10 @@ export const createStudent = async ({
       sex,
       birthday,
       profile,
+      parentId,
+      classId,
+      gradeId,
+      school_id,
     ];
 
     const data = await pool.query(query, params);
@@ -166,83 +178,101 @@ export const createStudent = async ({
   }
 };
 
-export const findUserInTables = async (username, email) => {
+export const findUserInSchool = async (
+  username,
+  email,
+  school_id,
+  table = "admin",
+) => {
+  const query = `
+    SELECT * FROM ?? 
+    WHERE (username = ? OR email = ?) AND school_id = ?
+  `;
+  const [results] = await pool.query(query, [
+    table,
+    username,
+    email,
+    school_id,
+  ]);
+  return results.length > 0 ? results[0] : null;
+};
+
+export const findUser = async (username, email, table) => {
+  const allowedTables = ["admin", "teacher", "parent", "student"];
+
+  if (!allowedTables.includes(table)) {
+    throw new Error(`Invalid table name: ${table}`);
+  }
+
+  const query = `
+    SELECT * FROM ${table}
+    WHERE (username = ? OR email = ?)
+  `;
+
+  const [results] = await pool.query(query, [username, email]);
+  return results.length > 0 ? results[0] : null;
+};
+
+export const findUserByIdAndSchool = async (id, table, school_id) => {
   const tables = ["admin", "student", "teacher", "parent"];
 
-  for (const table of tables) {
-    let query = `SELECT * FROM ?? WHERE`;
-    const queryParams = [table];
+  for (table of tables) {
+    const selectQuery = `SELECT * FROM ?? WHERE id = ? AND school_id = ?`;
+    const queryParams = [table, id, school_id];
 
-    if (username) {
-      query += ` username = ?`;
-      queryParams.push(username);
-    }
+    try {
+      const [result] = await pool.query(selectQuery, queryParams);
 
-    if (email) {
-      query += username ? ` OR email = ?` : ` email = ?`;
-      queryParams.push(email);
-    }
-
-    const [result] = await pool.query(query, queryParams);
-
-    if (result.length > 0) {
-      return { ...result[0], role: table };
+      if (result.length > 0) {
+        const user = { ...result[0], role: table };
+        return user;
+      }
+    } catch (error) {
+      console.error("Error in SQL query:", error.message);
     }
   }
 
   return null;
 };
 
-export const findUserById = async (id) => {
-  const tables = ["admin", "student", "teacher", "parent"];
-
-  for (const table of tables) {
-    const query = `SELECT * FROM ?? WHERE id = ?`;
-    const queryParams = [table, id];
-
-    const [result] = await pool.query(query, queryParams);
-
-    if (result.length > 0) {
-      return { ...result[0], role: table };
-    }
-  }
-
-  return null; // Return null if no user is found in any table
-};
-
-export const updateUser = async (id, updates, table) => {
+export const updateUser = async (id, updates, table, school_id) => {
   const allowedTables = ["admin", "student", "teacher", "parent"];
   if (!allowedTables.includes(table)) throw new ApiError("Invalid table name");
 
   const setClause = Object.keys(updates)
     .map((key) => `${key} = ?`)
     .join(", ");
-  const values = [...Object.values(updates), id];
+  const values = [...Object.values(updates), id, school_id];
 
   try {
-    const query = `UPDATE ${table} SET ${setClause} WHERE id = ?`;
+    const query = `UPDATE ${table} SET ${setClause} WHERE id = ? AND school_id = ?`;
     const [result] = await pool.query(query, values);
     return result.affectedRows > 0;
   } catch (error) {
-    throw error;
+    throw new ApiError(500, `Update failed: ${error.message}`);
   }
 };
 
-export const findUsers = async (table) => {
+export const findUsers = async (table, filters = {}) => {
   const allowedTables = ["admin", "student", "teacher", "parent"];
 
-  // Validate the table name
   if (!allowedTables.includes(table)) {
-    throw new ApiError("Invalid table name");
+    throw new ApiError(400, "Invalid table name");
   }
 
-  // Query to fetch all rows from the table
-  const query = `SELECT * FROM ??`;
+  let query = `SELECT * FROM ??`;
   const queryParams = [table];
+
+  if (Object.keys(filters).length > 0) {
+    const filterConditions = Object.keys(filters)
+      .map((key) => `\`${key}\` = ?`)
+      .join(" AND ");
+    query += ` WHERE ${filterConditions}`;
+    queryParams.push(...Object.values(filters));
+  }
 
   const [result] = await pool.query(query, queryParams);
 
-  // Add role field to each user in the result
   return result.map((user) => ({ ...user, role: table }));
 };
 
@@ -251,19 +281,19 @@ export const findUserByIdAndDelete = async (id) => {
 
   for (const table of tables) {
     const selectQuery = `SELECT * FROM ?? WHERE id = ?`;
-    const queryParams = [table, id];
-    const [result] = await pool.query(selectQuery, queryParams);
+    const selectParams = [table, id];
+    const [result] = await pool.query(selectQuery, selectParams);
 
     if (result.length > 0) {
       const user = { ...result[0], role: table };
 
-      // Query to delete the user
       const deleteQuery = `DELETE FROM ?? WHERE id = ?`;
-      await pool.query(deleteQuery, queryParams);
+      const deleteParams = [table, id];
+      await pool.query(deleteQuery, deleteParams);
 
       return user;
     }
   }
 
-  return null; // Return null if no user is found in any table
+  return null;
 };

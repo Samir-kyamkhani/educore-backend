@@ -1,0 +1,19 @@
+version: '3.8'
+services:
+  db:
+    image: mysql:latest
+    container_name: sqldb
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: school
+      MYSQL_DATABASE: school_database
+      MYSQL_USER: user
+      MYSQL_PASSWORD: userpassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysqldata:/var/lib/mysql
+      - ./dump.sql:/docker-entrypoint-initdb.d/dump.sql
+
+volumes:
+  mysqldata:
