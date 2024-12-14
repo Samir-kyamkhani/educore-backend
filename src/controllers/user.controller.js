@@ -63,9 +63,7 @@ const adminSignup = asyncHandler(async (req, res) => {
       governmentId,
     ].some(
       (field) => !field || typeof field !== "string" || field.trim() === "",
-    ) ||
-    typeof agreementToTerms === "undefined" ||
-    typeof schoolEstablished === "undefined"
+    )
   ) {
     throw new ApiError(400, "All required fields must be provided and valid");
   }
@@ -77,12 +75,16 @@ const adminSignup = asyncHandler(async (req, res) => {
         : agreementToTerms === "false"
           ? false
           : undefined;
+
     if (agreementToTerms === undefined) {
       throw new ApiError(400, "'agreementToTerms' must be a boolean value");
     }
   }
 
   const newSchoolEstablished = validateDate(schoolEstablished);
+  if (!newSchoolEstablished) {
+    throw new ApiError(400, "Invalid 'schoolEstablished' date format");
+  }
 
   const avatarLocalPath = req.files?.profilePicture?.[0]?.path;
   const schoolLogo = req.files?.schoolLogo?.[0]?.path;
@@ -131,7 +133,6 @@ const adminSignup = asyncHandler(async (req, res) => {
   }
 
   const newUser = await findUserInSchool(username, email, null, "admin");
-
   if (!newUser) {
     throw new ApiError(404, "User creation successful but user not found");
   }
@@ -206,7 +207,11 @@ const adminUpdate = asyncHandler(async (req, res) => {
   }
 
   if (oldPassword?.trim() && password?.trim()) {
-    const existUser = await findUserByIdAndSchool(req.user.id, school_id);
+    const existUser = await findUserByIdAndSchool(
+      req.user.id,
+      "admin",
+      school_id,
+    );
 
     if (!existUser) {
       throw new ApiError(401, "User not found with the given ID");
@@ -1106,16 +1111,19 @@ const authenticateUserController = asyncHandler(async (req, res) => {
 
 const getCurrentUser = asyncHandler(async (req, res) => {
   const userID = req.user?.id;
-  const school_id = req.user.school_id;
+  const school_id = req.user?.school_id;
 
   if (!userID) {
     throw new ApiError("User not logged in", 401);
   }
 
-  const { password: _, ...user } = await findUserByIdAndSchool(
-    userID,
-    school_id,
-  );
+  const userData = await findUserByIdAndSchool(userID, null, school_id);
+
+  if (!userData) {
+    throw new ApiError("User not found", 404);
+  }
+
+  const { password, ...user } = userData;
 
   return res
     .status(200)
@@ -1241,7 +1249,7 @@ const getSingleUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, "User ID is required");
   }
 
-  const user = await findUserByIdAndSchool(userId, school_id);
+  const user = await findUserByIdAndSchool(userId, null, school_id);
 
   if (!user || user.school_id !== school_id) {
     throw new ApiError(404, "User not found or does not belong to this school");

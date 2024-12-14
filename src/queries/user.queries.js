@@ -178,22 +178,20 @@ export const createStudent = async ({
   }
 };
 
-export const findUserInSchool = async (
-  username,
-  email,
-  school_id,
-  table = "admin",
-) => {
+export const findUserInSchool = async (username, email, school_id, table) => {
   const query = `
     SELECT * FROM ?? 
-    WHERE (username = ? OR email = ?) AND school_id = ?
+    WHERE (username = ? OR email = ?) 
+    ${school_id ? "AND school_id = ?" : ""}
+    LIMIT 1
   `;
-  const [results] = await pool.query(query, [
-    table,
-    username,
-    email,
-    school_id,
-  ]);
+
+  const params = school_id
+    ? [table, username, email, school_id]
+    : [table, username, email];
+
+  const [results] = await pool.query(query, params);
+
   return results.length > 0 ? results[0] : null;
 };
 
